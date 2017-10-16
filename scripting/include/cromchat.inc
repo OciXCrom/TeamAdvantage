@@ -14,21 +14,70 @@
 
 #define CromChat CC_SendMessage
 
-#define CC_VERSION 1.1
+#define CC_VERSION 1.3
 #define CC_MAX_TEAM_SIZE 10
+#define CC_MAX_PLAYERS 32
 #define CC_MAX_PREFIX_SIZE 64
 #define CC_MAX_MESSAGE_SIZE 188
 
-new CC_PREFIX[CC_MAX_PREFIX_SIZE], bool:CC_FIRST_TIME = true, CC_MSG_SAYTEXT, CC_MSG_TEAMINFO
-new const CC_REPLACE_COLORS[][] = { "&x04", "^x04", "&x03", "^x03", "&x01", "^x01" }
-new const CC_PLUS_COLORS[][] = { "&x07", "TERRORIST", "&x06", "CT", "&x05", "SPECTATOR" }
-new const CC_COLORS_LIST[][] = { "&x07", "&x06", "&x05", "&x04", "&x03", "&x01", "&x00" }
-new const CC_MENU_COLORS[][] = { "\y", "\r", "\w", "\d", "\R" }
-new const CC_NO_PREFIX[] = "&x00"
+#if !defined CC_COLORS_TYPE
+	#define CC_COLORS_TYPE CC_COLORS_CROMCHAT
+#endif
 
+enum
+{
+	CC_COLOR_TEAM = 0,
+	CC_COLOR_GREY = -1,
+	CC_COLOR_WHITE = -1,
+	CC_COLOR_BLUE = -2,
+	CC_COLOR_RED = -3
+}
+
+enum
+{
+	CC_COLORS_CROMCHAT,
+	CC_COLORS_SHORT,
+	CC_COLORS_NAMED,
+	CC_COLORS_NAMED_SHORT,
+	CC_COLORS_STANDARD,
+	CC_COLORS_CUSTOM
+}
+
+new CC_PREFIX[CC_MAX_PREFIX_SIZE], bool:CC_FIRST_TIME = true, CC_MSG_SAYTEXT, CC_MSG_TEAMINFO
+new const CC_MENU_COLORS[][] = { "\y", "\r", "\w", "\d", "\R" }
+
+#if CC_COLORS_TYPE != CC_COLORS_CUSTOM
+	#if CC_COLORS_TYPE == CC_COLORS_CROMCHAT
+	new const CC_REPLACE_COLORS[][] = { "&x04", "^x04", "&x03", "^x03", "&x01", "^x01" }
+	new const CC_PLUS_COLORS[][] = { "&x07", "TERRORIST", "&x06", "CT", "&x05", "SPECTATOR" }
+	new const CC_COLORS_LIST[][] = { "&x07", "&x06", "&x05", "&x04", "&x03", "&x01", "&x00" }
+	new const CC_NO_PREFIX[] = "&x00"
+	#elseif CC_COLORS_TYPE == CC_COLORS_SHORT
+	new const CC_REPLACE_COLORS[][] = { "!g", "^x04", "!t", "^x03", "!n", "^x01" }
+	new const CC_PLUS_COLORS[][] = { "!r", "TERRORIST", "!b", "CT", "!w", "SPECTATOR" }
+	new const CC_COLORS_LIST[][] = { "!r", "!b", "!w", "!g", "!t", "!n", "!p" }
+	new const CC_NO_PREFIX[] = "!p"
+	#elseif CC_COLORS_TYPE == CC_COLORS_NAMED
+	new const CC_REPLACE_COLORS[][] = { "{green}", "^x04", "{team}", "^x03", "{normal}", "^x01" }
+	new const CC_PLUS_COLORS[][] = { "{red}", "TERRORIST", "{blue}", "CT", "{white}", "SPECTATOR" }
+	new const CC_COLORS_LIST[][] = { "{red}", "{blue}", "{white}", "{green}", "{team}", "{normal}", "{nopref}" }
+	new const CC_NO_PREFIX[] = "{nopref}"
+	#elseif CC_COLORS_TYPE == CC_COLORS_NAMED_SHORT
+	new const CC_REPLACE_COLORS[][] = { "{g}", "^x04", "{t}", "^x03", "{n}", "^x01" }
+	new const CC_PLUS_COLORS[][] = { "{r}", "TERRORIST", "{b}", "CT", "{w}", "SPECTATOR" }
+	new const CC_COLORS_LIST[][] = { "{r}", "{b}", "{w}", "{g}", "{t}", "{n}", "{p}" }
+	new const CC_NO_PREFIX[] = "{p}"
+	#elseif CC_COLORS_TYPE == CC_COLORS_STANDARD
+	new const CC_REPLACE_COLORS[][] = { "^4", "^x04", "^3", "^x03", "^1", "^x01" }
+	new const CC_PLUS_COLORS[][] = { "^7", "TERRORIST", "^6", "CT", "^5", "SPECTATOR" }
+	new const CC_COLORS_LIST[][] = { "^7", "^6", "^5", "^4", "^3", "^1", "^0" }
+	new const CC_NO_PREFIX[] = "^2"
+	#endif
+#endif
+	
 stock CC_SendMessage(const id, const szInput[], any:...)
 {
-	static iPlayers[32], iPnum
+	static iPlayers[CC_MAX_PLAYERS], iPnum
 	
 	if(id)
 	{
@@ -84,6 +133,36 @@ stock CC_SendMessage(const id, const szInput[], any:...)
 	return strlen(szMessage)
 }
 
+stock CC_SendMatched(const id, const iPlayer, const szInput[], any:...)
+{
+	static szMessage[CC_MAX_MESSAGE_SIZE]
+	vformat(szMessage[1], charsmax(szMessage), szInput, 4)
+	szMessage[0] = 0x01
+	
+	static iColor
+	
+	if(is_user_connected(iPlayer))
+	{
+		switch(get_user_team(iPlayer))
+		{
+			case 1: iColor = CC_COLOR_RED
+			case 2: iColor = CC_COLOR_BLUE
+			default: iColor = CC_COLOR_GREY
+		}
+	}
+	else
+		iColor = iPlayer
+		
+	switch(iColor)
+	{
+		case CC_COLOR_RED: add(szMessage, charsmax(szMessage), CC_COLORS_LIST[0])
+		case CC_COLOR_BLUE: add(szMessage, charsmax(szMessage), CC_COLORS_LIST[1])
+		case CC_COLOR_GREY: add(szMessage, charsmax(szMessage), CC_COLORS_LIST[2])
+	}
+	
+	return CC_SendMessage(id, szMessage)
+}
+
 stock CC_LogMessage(const id, const szFile[] = "", const szInput[], any:...)
 {
 	static szMessage[CC_MAX_MESSAGE_SIZE]
@@ -119,7 +198,7 @@ stock CC_WriteMessage(const id, const szMessage[], szTeam[CC_MAX_TEAM_SIZE])
 
 	message_begin(MSG_ONE, CC_MSG_SAYTEXT, _, id)
 	write_byte(id)
-	write_string("%s")
+	//write_string("%s") -- Good Job, Valve!
 	write_string(szMessage)
 	message_end()
 	
